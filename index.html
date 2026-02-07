@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Sistema di Votazione</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+body { font-family: Arial; margin: 40px; }
+button { margin: 5px; padding: 5px 10px; }
+input { margin: 5px; }
+.hidden { display:none; }
+</style>
+</head>
+<body>
+
+<h1>Sistema di Votazione Online</h1>
+
+<div id="home">
+<button onclick="showAdmin()">Admin</button>
+<button onclick="generateToken()">Genera Token</button>
+<button onclick="showVote()">Vota</button>
+<button onclick="showResults()">Risultati</button>
+</div>
+
+<hr>
+
+<!-- ADMIN -->
+<div id="admin" class="hidden">
+<h2>Login Admin</h2>
+<input id="adminUser" placeholder="Username">
+<input id="adminPass" type="password" placeholder="Password">
+<button onclick="loginAdmin()">Login</button>
+<div id="adminPanel" class="hidden">
+<h3>Aggiungi Partecipante</h3>
+<input id="pName" placeholder="Nome">
+<select id="pGroup">
+<option>Gruppo A</option>
+<option>Gruppo B</option>
+</select>
+<select id="pCategory">
+<option>Categoria 1</option>
+<option>Categoria 2</option>
+</select>
+<button onclick="addParticipant()">Aggiungi</button>
+<h3>Partecipanti</h3>
+<ul id="participantList"></ul>
+</div>
+</div>
+
+<!-- VOTO -->
+<div id="vote" class="hidden">
+<h2>Inserisci Token</h2>
+<input id="voteToken" placeholder="Token">
+<button onclick="loadVoting()">Continua</button>
+<div id="votingArea"></div>
+</div>
+
+<!-- RISULTATI -->
+<div id="results" class="hidden">
+<h2>Classifica</h2>
+<ol id="ranking"></ol>
+<canvas id="chart"></canvas>
+</div>
+
+<script>
+let data = JSON.parse(localStorage.getItem("votingData")) || {
+admin:{user:"admin",pass:"admin123"},
+participants:[],
+votes:{}
+};
+
+function save(){ localStorage.setItem("votingData",JSON.stringify(data)); }
+
+function hideAll(){
+document.getElementById("admin").classList.add("hidden");
+document.getElementById("vote").classList.add("hidden");
+document.getElementById("results").classList.add("hidden");
+}
+
+function showAdmin(){ hideAll(); document.getElementById("admin").classList.remove("hidden"); }
+
+function showVote(){ hideAll(); document.getElementById("vote").classList.remove("hidden"); }
+
+function showResults(){
+hideAll();
+document.getElementById("results").classList.remove("hidden");
+calculateResults();
+}
+
+function loginAdmin(){
+let u=document.getElementById("adminUser").value;
+let p=document.getElementById("adminPass").value;
+if(u===data.admin.user && p===data.admin.pass){
+document.getElementById("adminPanel").classList.remove("hidden");
+updateParticipantList();
+}else alert("Login errato");
+}
+
+function addParticipant(){
+let name=document.getElementById("pName").value;
+let group=document.getElementById("pGroup").value;
+let cat=document.getElementById("pCategory").value;
+data.participants.push({name,group,cat});
+save();
+updateParticipantList();
+}
+
+function updateParticipantList(){
+let ul=document.getElementById("participantList");
+ul.innerHTML="";
+data.participants.forEach(p=>{
+ul.innerHTML+=`<li>${p.name} - ${p.group} / ${p.cat}</li>`;
+});
+}
+
+function generateToken(){
+let token=crypto.randomUUID();
+data.votes[token]=null;
+save();
+alert("Token generato:\n"+token);
+}
+
+function loadVoting(){
+let token=document.getElementById("voteToken").value;
+if(!(token in data.votes)){ alert("Token non valido"); return;}
+if(data.votes[token]!=null){ alert("Hai già votato"); return;}
+let area=document.getElementById("votingArea");
+area.innerHTML="<h3>Vota</h3>";
+data.participants.forEach(p=>{
+area.innerHTML+=`${p.name} (${p.group}/${p.cat}):
+<input type='number' id='${p.name}' min='1' max='10'><br><br>`;
+});
+area.innerHTML+=`<button onclick="submitVote('${token}')">Invia</button>`;
+}
+
+function submitVote(token){
+data.votes[token]={};
+data.participants.forEach(p=>{
+let v=parseInt(document.getElementById(p.name).value);
+if(v>=1 && v<=10){ data.votes[token][p.name]=v; }
+});
+save();
+alert("Voto registrato");
+}
+
+function calculateResults(){
+let ranking=[];
+data.participants.forEach(p=>{
+let scores=[];
+for(let t in data.votes){
+if(data.votes[t]!=null && data.votes[t][p.name])
+scores.push(data.votes[t][p.name]);
+}
+let avg=scores.length? scores.reduce((a,b)=>a+b)/scores.length:0;
+ranking.push({name:p.name,avg});
+});
+ranking.sort((a,b)=>b.avg-a.avg);
+
+let list=document.getElementById("ranking");
+list.innerHTML="";
+ranking.forEach(r=>{
+list.innerHTML+=`<li>${r.name} - ${r.avg.toFixed(2)}</li>`;
+});
+
+let ctx=document.getElementById("chart");
+new Chart(ctx,{
+type:"bar",
+data:{
+labels:ranking.map(r=>r.name),
+datasets:[{label:"Media voti",data:ranking.map(r=>r.avg)}]
+}
+});
+}
+</script>
+
+</body>
+</html>
