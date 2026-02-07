@@ -6,21 +6,18 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
 body { font-family: Arial; margin: 40px; }
-button { margin: 5px; padding: 5px 10px; }
-input { margin: 5px; }
-.hidden { display:none; }
+button { margin: 5px; padding: 6px 12px; }
+input, select { margin: 5px; padding: 4px; }
+.hidden { display: none; }
 </style>
 </head>
 <body>
 
 <h1>Sistema di Votazione Online</h1>
 
-<div id="home">
 <button onclick="showAdmin()">Admin</button>
-<button onclick="generateToken()">Genera Token</button>
 <button onclick="showVote()">Vota</button>
 <button onclick="showResults()">Risultati</button>
-</div>
 
 <hr>
 
@@ -30,6 +27,7 @@ input { margin: 5px; }
 <input id="adminUser" placeholder="Username">
 <input id="adminPass" type="password" placeholder="Password">
 <button onclick="loginAdmin()">Login</button>
+
 <div id="adminPanel" class="hidden">
 <h3>Aggiungi Partecipante</h3>
 <input id="pName" placeholder="Nome">
@@ -42,17 +40,17 @@ input { margin: 5px; }
 <option>Categoria 2</option>
 </select>
 <button onclick="addParticipant()">Aggiungi</button>
+
 <h3>Partecipanti</h3>
 <ul id="participantList"></ul>
 </div>
 </div>
 
-<!-- VOTO -->
+<!-- VOTAZIONE -->
 <div id="vote" class="hidden">
-<h2>Inserisci Token</h2>
-<input id="voteToken" placeholder="Token">
-<button onclick="loadVoting()">Continua</button>
+<h2>Votazione</h2>
 <div id="votingArea"></div>
+<button onclick="submitVote()">Invia Voto</button>
 </div>
 
 <!-- RISULTATI -->
@@ -66,7 +64,8 @@ input { margin: 5px; }
 let data = JSON.parse(localStorage.getItem("votingData")) || {
 admin:{user:"admin",pass:"admin123"},
 participants:[],
-votes:{}
+votes:[],
+alreadyVoted:false
 };
 
 function save(){ localStorage.setItem("votingData",JSON.stringify(data)); }
@@ -78,14 +77,8 @@ document.getElementById("results").classList.add("hidden");
 }
 
 function showAdmin(){ hideAll(); document.getElementById("admin").classList.remove("hidden"); }
-
-function showVote(){ hideAll(); document.getElementById("vote").classList.remove("hidden"); }
-
-function showResults(){
-hideAll();
-document.getElementById("results").classList.remove("hidden");
-calculateResults();
-}
+function showVote(){ hideAll(); document.getElementById("vote").classList.remove("hidden"); loadVoting(); }
+function showResults(){ hideAll(); document.getElementById("results").classList.remove("hidden"); calculateResults(); }
 
 function loginAdmin(){
 let u=document.getElementById("adminUser").value;
@@ -113,44 +106,40 @@ ul.innerHTML+=`<li>${p.name} - ${p.group} / ${p.cat}</li>`;
 });
 }
 
-function generateToken(){
-let token=crypto.randomUUID();
-data.votes[token]=null;
-save();
-alert("Token generato:\n"+token);
-}
-
 function loadVoting(){
-let token=document.getElementById("voteToken").value;
-if(!(token in data.votes)){ alert("Token non valido"); return;}
-if(data.votes[token]!=null){ alert("Hai già votato"); return;}
+if(data.alreadyVoted){
+document.getElementById("votingArea").innerHTML="<p>Hai già votato da questo dispositivo.</p>";
+return;
+}
 let area=document.getElementById("votingArea");
-area.innerHTML="<h3>Vota</h3>";
+area.innerHTML="";
 data.participants.forEach(p=>{
 area.innerHTML+=`${p.name} (${p.group}/${p.cat}):
-<input type='number' id='${p.name}' min='1' max='10'><br><br>`;
+<input type='number' id='${p.name}' min='1' max='10' required><br><br>`;
 });
-area.innerHTML+=`<button onclick="submitVote('${token}')">Invia</button>`;
 }
 
-function submitVote(token){
-data.votes[token]={};
+function submitVote(){
+if(data.alreadyVoted){ alert("Hai già votato."); return; }
+
+let voteSet={};
 data.participants.forEach(p=>{
 let v=parseInt(document.getElementById(p.name).value);
-if(v>=1 && v<=10){ data.votes[token][p.name]=v; }
+if(v>=1 && v<=10){ voteSet[p.name]=v; }
 });
+data.votes.push(voteSet);
+data.alreadyVoted=true;
 save();
-alert("Voto registrato");
+alert("Voto registrato!");
 }
 
 function calculateResults(){
 let ranking=[];
 data.participants.forEach(p=>{
 let scores=[];
-for(let t in data.votes){
-if(data.votes[t]!=null && data.votes[t][p.name])
-scores.push(data.votes[t][p.name]);
-}
+data.votes.forEach(v=>{
+if(v[p.name]) scores.push(v[p.name]);
+});
 let avg=scores.length? scores.reduce((a,b)=>a+b)/scores.length:0;
 ranking.push({name:p.name,avg});
 });
@@ -175,3 +164,4 @@ datasets:[{label:"Media voti",data:ranking.map(r=>r.avg)}]
 
 </body>
 </html>
+
